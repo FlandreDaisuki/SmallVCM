@@ -10,7 +10,8 @@
             "command": "make",
             "args": [
                 "debug"
-            ]
+            ],
+            "isBuildCommand": true
         }
     ]
 }

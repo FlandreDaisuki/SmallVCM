@@ -113,33 +113,37 @@ float render(
     if(oUsedIterations)
         *oUsedIterations = iter+1;
 
-    // Accumulate from all renderers into a common framebuffer
-    int usedRenderers = 0;
-
-    // With very low number of iterations and high number of threads
-    // not all created renderers had to have been used.
-    // Those must not participate in accumulation.
-    for(int i=0; i<aConfig.mNumThreads; i++)
+    for(int j=0; j<aConfig.mNumCameras; j++)
     {
-        if(!renderers[i]->WasUsed())
-            continue;
+        // Accumulate from all renderers into a common framebuffer
+        int usedRenderers = 0;
 
-        if(usedRenderers == 0)
+        // With very low number of iterations and high number of threads
+        // not all created renderers had to have been used.
+        // Those must not participate in accumulation.
+        for(int i=0; i<aConfig.mNumThreads; i++)
         {
-            renderers[i]->GetFramebuffer(*aConfig.mFramebuffer);
-        }
-        else
-        {
-            Framebuffer tmp;
-            renderers[i]->GetFramebuffer(tmp);
-            aConfig.mFramebuffer->Add(tmp);
+            if(!renderers[i]->WasUsed())
+                continue;
+
+            if(usedRenderers == 0)
+            {
+                renderers[i]->GetFramebuffer(*(aConfig.mFramebuffer[j]));
+            }
+            else
+            {
+                Framebuffer tmp;
+                renderers[i]->GetFramebuffer(tmp);
+                aConfig.mFramebuffer[j]->Add(tmp);
+            }
+
+            usedRenderers++;
         }
 
-        usedRenderers++;
+        // Scale framebuffer by the number of used renderers
+        aConfig.mFramebuffer[j]->Scale(1.f / usedRenderers);
     }
 
-    // Scale framebuffer by the number of used renderers
-    aConfig.mFramebuffer->Scale(1.f / usedRenderers);
 
     // Clean up renderers
     for(int i=0; i<aConfig.mNumThreads; i++)
@@ -161,8 +165,11 @@ void FullReport(const Config &aConfig)
     config.mFullReport = false;
 
     // Setup framebuffer and threads
-    Framebuffer fbuffer;
-    config.mFramebuffer = &fbuffer;
+    Framebuffer **fbuffers = new Framebuffer *[config.mNumCameras];
+    for(int i=0; i<config.mNumCameras; ++i) {
+        fbuffers[i] = new Framebuffer();
+    }
+    config.mFramebuffer = fbuffers;
 
     // Setup html writer
     HtmlWriter html_writer("index.html");
@@ -229,7 +236,13 @@ void FullReport(const Config &aConfig)
             std::string filename = DefaultFilename(g_SceneConfigs[sceneID],
                 *config.mScene, config.mAlgorithm);
 
-            fbuffer.SaveBMP(filename.c_str(), 2.2f);
+            for(int i=0; i<config.mNumCameras; ++i) {
+                std::string nfilename(filename);
+                nfilename += " (";
+                nfilename += '0' + i;
+                nfilename += ") ";
+                fbuffers[i]->SaveBMP(nfilename.c_str(), 2.2f);
+            }
 
             // Add thumbnail of the method
             HtmlWriter::BorderColor bcolor = HtmlWriter::kNone;
@@ -293,8 +306,11 @@ int main(int argc, const char *argv[])
         return 1;
 
     // Sets up framebuffer and number of threads
-    Framebuffer fbuffer;
-    config.mFramebuffer = &fbuffer;
+    Framebuffer **fbuffers = new Framebuffer *[config.mNumCameras];
+    for(int i=0; i<config.mNumCameras; ++i) {
+        fbuffers[i] = new Framebuffer();
+    }
+    config.mFramebuffer = fbuffers;
 
     // Prints what we are doing
     printf("Scene:   %s\n", config.mScene->mSceneName.c_str());
@@ -312,12 +328,20 @@ int main(int argc, const char *argv[])
     // Saves the image
     std::string extension = config.mOutputName.substr(config.mOutputName.length() - 3, 3);
 
-    if(extension == "bmp")
-        fbuffer.SaveBMP(config.mOutputName.c_str(), 2.2f /*gamma*/);
-    else if(extension == "hdr")
-        fbuffer.SaveHDR(config.mOutputName.c_str());
-    else
-        printf("Used unknown extension %s\n", extension.c_str());
+    for(int i=0; i<config.mNumCameras; ++i) {
+        std::string nfilename(config.mOutputName.substr(0, config.mOutputName.length() - 4));
+        nfilename += " (";
+        nfilename += '0' + i;
+        nfilename += ") ";
+        nfilename += "." + extension;
+
+        if(extension == "bmp")
+            fbuffers[i]->SaveBMP(nfilename.c_str(), 2.2f /*gamma*/);
+        else if(extension == "hdr")
+            fbuffers[i]->SaveHDR(nfilename.c_str());
+        else
+            printf("Used unknown extension %s\n", extension.c_str());
+    }
 
     // Scene cleanup
     delete config.mScene;

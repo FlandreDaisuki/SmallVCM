@@ -98,7 +98,8 @@ struct Config
     float       mMaxTime;
     float       mRadiusFactor;
     float       mRadiusAlpha;
-    Framebuffer *mFramebuffer;
+    Framebuffer **mFramebuffer;
+    int         mNumCameras;
     int         mNumThreads;
     int         mBaseSeed;
     uint        mMaxPathLength;
@@ -212,6 +213,7 @@ void PrintHelp(const char *argv[])
     printf("    -t  Number of seconds to run the algorithm\n");
     printf("    -i  Number of iterations to run the algorithm (default 1)\n");
     printf("    -o  User specified output name, with extension .bmp or .hdr (default .bmp)\n");
+    printf("    -nc Number of cameras\n");
     printf("    --report\n");
     printf("        Renders all scenes using all algorithms and generates an index.html file\n");
     printf("        that displays all images. Obeys the -t and -i options, ignores the rest.\n");
@@ -238,6 +240,7 @@ void ParseCommandline(int argc, const char *argv[], Config &oConfig)
     oConfig.mFullReport    = false;
     oConfig.mRadiusFactor  = 0.003f;
     oConfig.mRadiusAlpha   = 0.75f;
+    oConfig.mNumCameras    = 1;
     //oConfig.mFramebuffer   = NULL; // this is never set by any parameter
 
     int sceneID    = 0; // default 0
@@ -347,6 +350,23 @@ void ParseCommandline(int argc, const char *argv[], Config &oConfig)
             if(oConfig.mOutputName.length() == 0)
             {
                 printf("Invalid <output_name> argument, please see help (-h)\n");
+                return;
+            }
+        }
+        else if(arg == "-nc")
+        {
+            if(++i == argc)
+            {
+                printf("Missing <output_name> argument, please see help (-h)\n");
+                return;
+            }
+
+            std::istringstream iss(argv[i]);
+            iss >> oConfig.mNumCameras;
+
+            if(iss.fail() || oConfig.mNumCameras < 1)
+            {
+                printf("Invalid <camera> argument, please see help (-h)\n");
                 return;
             }
         }
